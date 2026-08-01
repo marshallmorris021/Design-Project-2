@@ -11,10 +11,7 @@ import smbus
 
 #set ups for pins and directions
 #four Directions #place holder numbers
-direction1=1
-direction2=2
-direction3=3
-direction4=4
+directions= [ "forward", "right", "left", "backward" ] #placeholder for the directions to be taken by the robot, will be replaced by the actual directions from the sending pc
 
 
 #Pin layout
@@ -383,8 +380,11 @@ def avoid_line():
         # sensors equal: keep going straight
         forward(20)
 
-
-
+def Front_line():
+    sensor_Right, sensor_Left, sensor_Front = read_sensors()
+    if sensor_Front == 1:
+        return (1)  # stop the motor if the front sensor detects a line
+    return (0)  # continue moving if no line is detected
 
      
 #code to send camera feed on wifi to the receiving pc
@@ -431,7 +431,7 @@ def Receive(client_socket):  # receive data from the sending pc (called to the c
             break
 
 
-
+#check for front line detection and stop if it detects it
 def frontline():
     # code to detect front line and stop if it detects it
     _, _, sensor_Front = read_sensors()
@@ -444,24 +444,24 @@ def yellow_plusline():
     # code to detect yellow plus line and stop if it detects it
     # placeholder: checks front sensor and stops; add color-sensor logic here
     _, _, sensor_Front = read_sensors()
-    if sensor_Front == 1: & Receive(client_socket) == "yellow":
-    stop()  # stop the motor if the front sensor detects a line and yellow condition is met
+    if sensor_Front == 1 and Receive(client_socket) == "yellow":
+        stop()  # stop the motor if the front sensor detects a line and yellow condition is met
 
 #red signal + front line detection
 def red_plusline():
     # code to detect red plus line and stop if it detects it
     # placeholder: checks front sensor and stops; add color-sensor logic here
     _, _, sensor_Front = read_sensors()
-    if sensor_Front == 1: & Receive(client_socket) == "red":
-    stop()  # stop the motor if the front sensor detects a line and red condition is met
+    if sensor_Front == 1 and Receive(client_socket) == "red":
+        stop()  # stop the motor if the front sensor detects a line and red condition is met
 
 #stop sign + front line detection
 def Stopsign_plusline():
     # code to detect stop sign plus line and stop if it detects it
     # placeholder: checks front sensor and stops; add color-sensor logic here
     _, _, sensor_Front = read_sensors()
-    if sensor_Front == 1: & Receive(client_socket) == "Stop Sign":
-    stop()  # stop the motor if the front sensor detects a line and stop sign condition is met
+    if sensor_Front == 1 and Receive(client_socket) == "Stop Sign":
+        stop()  # stop the motor if the front sensor detects a line and stop sign condition is met
 
 #function used for threading the camera capture and sending/receiving data
 def Threading_Camera_Capture():
@@ -491,10 +491,11 @@ try:
             except Exception as e:
                 print(f"Could not connect to command server: {e}")
                 client_socket = None
+
         if Start == 1:
-            starttimer = time.time() #code to start the timer
+            start_timer = time.time() #code to start the timer
             #start navigation code: Start motor
-            for d in directions(d):
+            for d in directions:
                 forward(20) # moving forward at 20 speed
                 start_timer = time.time()  # Start the timer for elapsed time calculation
                 # Set up Sensor and Imu
@@ -502,20 +503,37 @@ try:
                 
                 setup_IMU()  # Initialize the IMU
                 Threading_Camera_Capture()  # Start camera capture and data sending/receiving in a separate thread
+
+                #start the threading for the camera capture and sending/receiving data
+                Camera_thread = threading.Thread(target=Threading_Camera_Capture)
+                Camera_thread.daemon = True  # Daemonize thread to exit when main program exits
+                Camera_thread.start()  # Start the camera capture thread
+
                 while True:
                     avoid_line() # code to avoid line
                     yellow_plusline() #code to detect yellow plus line and stop if it detects it
                     red_plusline() #code to detect red plus line and stop if it detects it
                     Stopsign_plusline() #code to detect stop sign plus line and stop if it detects it
+            if Front_line() == True:
+                    forward(20) # move forward if front line is detected
+                    if directions == "right":
+                        Turn_Right(20) #turn right if the direction is right
+                    elif directions == "left":
+                        Turning_Left(20) #turn left if the direction is left
+                    elif directions == "straight":
+                        forward(20) #move forward if the direction is forward
+
+                    time.sleep(1)#wait to continue straight after turning
+                    forward(20) #move forward after turning
                     Turn_counter = Turn_counter + 1 #increment the turn counter by 1
-            if Turn_counter == 4 and frontline() == True and Receive(client_socket) == "Stop Sign":
+            if Turn_counter == 4 and Front_line() == True and Receive(client_socket) == "Stop Sign":
                         stop()
                         break #stop the motor and end the program if the front line is detected and the stop sign command is received from the sending pc
         stop_timer = time.time() #code to stop the timer and calculate elapsed time
         time_elapsed = stop_timer - start_timer 
-                        
-            # Send image on delay ran on thread (call Send() or start a thread here)
 
+        # Send image on delay ran on thread (call Send() or start a thread here)
+        Send_time(time_elapsed)  # Send the elapsed time to the sending PC
 except KeyboardInterrupt:
     print("exit")
     GPIO.cleanup()
