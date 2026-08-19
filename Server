@@ -1,0 +1,175 @@
+import sys
+try:
+    from flask import Flask, request, jsonify, render_template
+except ImportError:
+    print("Flask is not installed. Install it with: pip install flask")
+    sys.exit(1)
+
+import os
+import time
+import threading
+
+app = Flask(__name__)
+
+# --------------------------------------------------
+# Configuration
+# --------------------------------------------------
+
+IMAGE_PATH = "static/latest.jpg"
+
+# How long before the robot is considered disconnected
+TIMEOUT_SECONDS = 3
+
+# --------------------------------------------------
+# Robot data
+# --------------------------------------------------
+
+robot_data = {
+    "ir_front": 0,
+    "ir_left": 0,
+    "ir_right": 0,
+
+    "motor_left": 0,
+    "motor_right": 0,
+
+    "motor_left_direction": "STOP",
+    "motor_right_direction": "STOP",
+
+    "status": "WAITING",
+    "command": "STOP",
+
+    "elapsed_time": 0,
+    "yolo_detection": "None",
+
+    "battery": 0,
+
+    "last_update": 0
+}
+
+# Make sure image directory exists
+os.makedirs("static", exist_ok=True)
+
+
+# --------------------------------------------------
+# Webpage
+# --------------------------------------------------
+
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+
+# --------------------------------------------------
+# Receive robot data
+# --------------------------------------------------
+
+@app.route("/api/data", methods=["POST"])
+def receive_data():
+
+    global robot_data
+
+    try:
+        data = request.get_json()
+
+        if data is None:
+            return jsonify({
+                "success": False,
+                "error": "No JSON data received"
+            }), 400
+
+        # Update only values that were sent
+        for key in data:
+
+            if key in robot_data and key != "last_update":
+                robot_data[key] = data[key]
+
+        robot_data["last_update"] = time.time()
+
+        return jsonify({
+            "success": True
+        })
+
+    except Exception as e:
+
+        print("Data error:", e)
+
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+# --------------------------------------------------
+# Receive camera image
+# --------------------------------------------------
+
+@app.route("/api/image", methods=["POST"])
+def receive_image():
+
+    try:
+
+        image_data = request.data
+
+        if not image_data:
+            return jsonify({
+                "success": False,
+                "error": "No image received"
+            }), 400
+
+        with open(IMAGE_PATH, "wb") as f:
+            f.write(image_data)
+
+        return jsonify({
+            "success": True
+        })
+
+    except Exception as e:
+
+        print("Image error:", e)
+
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+# --------------------------------------------------
+# Send robot data to webpage
+# --------------------------------------------------
+
+@app.route("/api/data", methods=["GET"])
+def send_data():
+
+    data = robot_data.copy()
+
+    # Determine connection status
+    current_time = time.time()
+
+    if current_time - data["last_update"] > TIMEOUT_SECONDS:
+        data["connected"] = False
+        data["status"] = "DISCONNECTED"
+    else:
+        data["connected"] = True
+
+    return jsonify(data)
+
+
+# --------------------------------------------------
+# Start server
+# --------------------------------------------------
+
+if __name__ == "__main__":
+
+    print("---------------------------------------")
+    print(" Autonomous Prime Dashboard")
+    print("---------------------------------------")
+    print("Server running on:")
+    print("http://0.0.0.0:5000")
+    print("---------------------------------------")
+
+    app.run(
+        host="0.0.0.0",
+        port=5000,
+        debug=False,
+        threaded=True
+    )
