@@ -27,6 +27,13 @@ Start_Btn = 19 #this is the pin for the start button
 #led pin
 Status_led = 7 #this is the pin for the led
 
+# Standby pin
+STBY = 18
+
+#code to set standby high for the motor drivers to work XD
+GPIO.setup(STBY, GPIO.OUT)
+GPIO.output(STBY, GPIO.HIGH)
+
 
 #MOTOR SETUP for front left
 GPIO.setmode(GPIO.BOARD)
