@@ -21,6 +21,13 @@ M2_Bin2= 35 #this is the pin for motordriver 2 (fourth motor)
 M2_PWMA = 32 #this is the pin for motordriver 2(third motor) power
 M2_PWMB = 33 #this is the pin for motordriver 2(fourth motor) power
 
+# Standby pin
+STBY = 18
+
+#code to set standby high for the motor drivers to work XD
+GPIO.setup(STBY, GPIO.OUT)
+GPIO.output(STBY, GPIO.HIGH)
+
 #Start Button
 Start_Btn = 19 #this is the pin for the start button
 
